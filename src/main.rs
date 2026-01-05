@@ -1,5 +1,19 @@
-#[allow(unused_imports)]
+use std::env;
 use std::io::{self, Write};
+use std::path::PathBuf;
+
+fn find_in_path(command: &str) -> Option<PathBuf> {
+    env::var_os("PATH").and_then(|paths| {
+        env::split_paths(&paths).find_map(|dir| {
+            let full_path = dir.join(command);
+            if full_path.is_file() {
+                Some(full_path)
+            } else {
+                None
+            }
+        })
+    })
+}
 
 fn main() {
     loop {
@@ -16,28 +30,26 @@ fn main() {
         }
 
         match tokens[0] {
-            "exit" => {
-                break;
-            }
-            "echo" => {
-                println!("{}", tokens[1..].join(" "));
-            }
+            "exit" => break,
+            "echo" => println!("{}", tokens[1..].join(" ")),
             "type" => {
                 if tokens.len() < 2 {
                     continue;
                 }
-                match tokens[1] {
-                    "exit" | "echo" | "type" => {
-                        println!("{} is a shell builtin", tokens[1]);
-                    }
+                let target = tokens[1];
+                match target {
+                    "exit" | "echo" | "type" => println!("{} is a shell builtin", target),
                     _ => {
-                        println!("{}: not found", tokens[1]);
+                        if let Some(path) = find_in_path(target) {
+                            println!("{} is {}", target, path.display());
+                        } else {
+                            println!("{}: not found", target);
+                        }
                     }
                 }
             }
-            _ => {
-                println!("{}: command not found", tokens[0]);
-            }
+
+            _ => println!("{}: command not found", tokens[0]),
         }
     }
 }
