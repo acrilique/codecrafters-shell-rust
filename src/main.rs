@@ -6,8 +6,13 @@ fn main() {
         print!("$ ");
         io::stdout().flush().unwrap();
 
-        let command = &mut String::new();
-        io::stdin().read_line(command).unwrap();
+        let mut buffer = String::new();
+        io::stdin().read_line(&mut buffer).unwrap();
+        let command = buffer.trim();
+
+        if command == "exit" {
+            break;
+        }
         println!("{}: command not found", command.trim());
     }
 }
