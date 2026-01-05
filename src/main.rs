@@ -1,3 +1,4 @@
+use is_executable::*;
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -6,7 +7,7 @@ fn find_in_path(command: &str) -> Option<PathBuf> {
     env::var_os("PATH").and_then(|paths| {
         env::split_paths(&paths).find_map(|dir| {
             let full_path = dir.join(command);
-            if full_path.is_file() {
+            if full_path.is_executable() {
                 Some(full_path)
             } else {
                 None
