@@ -2,10 +2,12 @@
 use std::io::{self, Write};
 
 fn main() {
-    print!("$ ");
-    io::stdout().flush().unwrap();
+    loop {
+        print!("$ ");
+        io::stdout().flush().unwrap();
 
-    let command = &mut String::new();
-    io::stdin().read_line(command).unwrap();
-    print!("{}: command not found", command.trim());
+        let command = &mut String::new();
+        io::stdin().read_line(command).unwrap();
+        println!("{}: command not found", command.trim());
+    }
 }
