@@ -55,7 +55,7 @@ fn main() {
             _ => {
                 if find_in_path(target).is_some() {
                     if let Ok(mut child) = Command::new(target).args(&tokens[1..]).spawn() {
-                        child.wait().expect("");
+                        let _ = child.wait();
                     }
                 } else {
                     println!("{}: command not found", target);
