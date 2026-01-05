@@ -2,6 +2,7 @@ use is_executable::*;
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::process::Command;
 
 fn find_in_path(command: &str) -> Option<PathBuf> {
     env::var_os("PATH").and_then(|paths| {
@@ -30,7 +31,8 @@ fn main() {
             continue;
         }
 
-        match tokens[0] {
+        let target = tokens[0];
+        match target {
             "exit" => break,
             "echo" => println!("{}", tokens[1..].join(" ")),
             "type" => {
@@ -50,7 +52,15 @@ fn main() {
                 }
             }
 
-            _ => println!("{}: command not found", tokens[0]),
+            _ => {
+                if find_in_path(target).is_some() {
+                    if let Ok(mut child) = Command::new(target).args(&tokens[1..]).spawn() {
+                        child.wait().expect("");
+                    }
+                } else {
+                    println!("{}: command not found", target);
+                }
+            }
         }
     }
 }
