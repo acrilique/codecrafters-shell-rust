@@ -13,6 +13,17 @@ fn main() {
         if command == "exit" {
             break;
         }
-        println!("{}: command not found", command.trim());
+
+        let tokens: Vec<&str> = command.split_whitespace().collect();
+
+        if tokens.is_empty() {
+            continue;
+        }
+
+        if tokens[0] == "echo" {
+            println!("{}", tokens[1..].join(" "));
+        } else {
+            println!("{}: command not found", command.trim());
+        }
     }
 }
