@@ -1,6 +1,19 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 
+fn eval(tokens: Vec<&str>) {
+    if !tokens.is_empty() {
+        match tokens[0] {
+            "echo" => {
+                println!("{}", tokens[1..].join(" "));
+            }
+            _ => {
+                println!("{}: command not found", tokens[0]);
+            }
+        }
+    }
+}
+
 fn main() {
     loop {
         print!("$ ");
@@ -15,15 +28,6 @@ fn main() {
         }
 
         let tokens: Vec<&str> = command.split_whitespace().collect();
-
-        if tokens.is_empty() {
-            continue;
-        }
-
-        if tokens[0] == "echo" {
-            println!("{}", tokens[1..].join(" "));
-        } else {
-            println!("{}: command not found", command.trim());
-        }
+        eval(tokens);
     }
 }
