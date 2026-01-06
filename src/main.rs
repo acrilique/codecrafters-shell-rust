@@ -41,21 +41,21 @@ fn main() {
                 }
                 let target = tokens[1];
                 match target {
-                    "exit" | "echo" | "type" | "pwd" => println!("{} is a shell builtin", target),
+                    "exit" | "echo" | "type" | "pwd" => println!("{target} is a shell builtin"),
                     _ => {
                         if let Some(path) = find_in_path(target) {
-                            println!("{} is {}", target, path.display())
+                            println!("{} is {}", target, path.display());
                         } else {
-                            println!("{}: not found", target)
+                            println!("{target}: not found");
                         }
                     }
                 }
             }
             "pwd" => {
                 if let Ok(path) = env::current_dir() {
-                    println!("{}", path.display())
+                    println!("{}", path.display());
                 } else {
-                    println!("can't obtain working directory")
+                    println!("can't obtain working directory");
                 }
             }
             _ => {
@@ -64,7 +64,7 @@ fn main() {
                         let _ = child.wait();
                     }
                 } else {
-                    println!("{}: command not found", target)
+                    println!("{target}: command not found");
                 }
             }
         }
