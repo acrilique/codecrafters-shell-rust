@@ -25,7 +25,9 @@ fn main() {
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer).unwrap();
         let command = buffer.trim();
-        let tokens: Vec<&str> = command.split_whitespace().collect();
+        let args_owned = shell_words::split(command).expect("failed to parse command input");
+
+        let tokens: Vec<&str> = args_owned.iter().map(String::as_str).collect();
 
         if tokens.is_empty() {
             continue;
@@ -44,6 +46,7 @@ fn main() {
                     "exit" | "echo" | "type" | "pwd" | "cd" => {
                         println!("{target} is a shell builtin");
                     }
+
                     _ => {
                         if let Some(path) = find_in_path(target) {
                             println!("{} is {}", target, path.display());
@@ -75,10 +78,10 @@ fn main() {
                 }
             }
             _ => {
-                if find_in_path(target).is_some() {
-                    if let Ok(mut child) = Command::new(target).args(&tokens[1..]).spawn() {
-                        let _ = child.wait();
-                    }
+                if find_in_path(target).is_some()
+                    && let Ok(mut child) = Command::new(target).args(&tokens[1..]).spawn()
+                {
+                    let _ = child.wait();
                 } else {
                     println!("{target}: command not found");
                 }
