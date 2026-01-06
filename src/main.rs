@@ -41,24 +41,30 @@ fn main() {
                 }
                 let target = tokens[1];
                 match target {
-                    "exit" | "echo" | "type" => println!("{} is a shell builtin", target),
+                    "exit" | "echo" | "type" | "pwd" => println!("{} is a shell builtin", target),
                     _ => {
                         if let Some(path) = find_in_path(target) {
-                            println!("{} is {}", target, path.display());
+                            println!("{} is {}", target, path.display())
                         } else {
-                            println!("{}: not found", target);
+                            println!("{}: not found", target)
                         }
                     }
                 }
             }
-
+            "pwd" => {
+                if let Ok(path) = env::current_dir() {
+                    println!("{}", path.display())
+                } else {
+                    println!("can't obtain working directory")
+                }
+            }
             _ => {
                 if find_in_path(target).is_some() {
                     if let Ok(mut child) = Command::new(target).args(&tokens[1..]).spawn() {
                         let _ = child.wait();
                     }
                 } else {
-                    println!("{}: command not found", target);
+                    println!("{}: command not found", target)
                 }
             }
         }
