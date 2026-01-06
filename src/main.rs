@@ -1,6 +1,6 @@
 use is_executable::IsExecutable;
 use std::env;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -61,6 +61,101 @@ fn find_in_path(command: &str) -> Option<PathBuf> {
             }
         })
     })
+}
+fn setup_redirections<'a>(tokens: &mut Vec<&str>) -> Result<ShellIO<'a>, String> {
+    let mut stdout_file: Option<File> = None;
+    let mut stderr_file: Option<File> = None;
+
+    let mut clean_tokens = Vec::new();
+    let mut i = 0;
+
+    let open = |path: &str, append: bool| -> Result<File, String> {
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(!append)
+            .append(append)
+            .open(path)
+            .map_err(|e| format!("Failed to open {path}: {e}"))
+    };
+
+    while i < tokens.len() {
+        let token = tokens[i];
+        match token {
+            // --- Standard Output Redirects ---
+            ">" | "1>" => {
+                if i + 1 >= tokens.len() {
+                    return Err("Missing filename for stdout".into());
+                }
+                stdout_file = Some(open(tokens[i + 1], false)?);
+                i += 2;
+            }
+            ">>" | "1>>" => {
+                if i + 1 >= tokens.len() {
+                    return Err("Missing filename for stdout append".into());
+                }
+                stdout_file = Some(open(tokens[i + 1], true)?);
+                i += 2;
+            }
+
+            // --- Standard Error Redirects ---
+            "2>" => {
+                if i + 1 >= tokens.len() {
+                    return Err("Missing filename for stderr".into());
+                }
+                stderr_file = Some(open(tokens[i + 1], false)?);
+                i += 2;
+            }
+            "2>>" => {
+                if i + 1 >= tokens.len() {
+                    return Err("Missing filename for stderr append".into());
+                }
+                stderr_file = Some(open(tokens[i + 1], true)?);
+                i += 2;
+            }
+
+            // --- Special Redirects ---
+            "&>" => {
+                // Redirect BOTH to same file (overwrite)
+                if i + 1 >= tokens.len() {
+                    return Err("Missing filename for &>".into());
+                }
+                let f = open(tokens[i + 1], false)?;
+                // We must clone the file handle so both streams can write to it independently
+                stderr_file = Some(f.try_clone().map_err(|e| e.to_string())?);
+                stdout_file = Some(f);
+                i += 2;
+            }
+
+            "2>&1" => {
+                // Merge stderr into stdout
+                // If stdout is currently a file, clone it for stderr.
+                // If stdout is currently None (terminal), set stderr to None (terminal).
+                if let Some(ref out) = stdout_file {
+                    stderr_file = Some(out.try_clone().map_err(|e| e.to_string())?);
+                } else {
+                    stderr_file = None;
+                }
+                i += 1; // This token doesn't take a filename argument
+            }
+
+            // --- Normal Arguments ---
+            _ => {
+                clean_tokens.push(token);
+                i += 1;
+            }
+        }
+    }
+
+    *tokens = clean_tokens;
+
+    // Construct the ShellIO based on the final state of our file handles
+    match (stdout_file, stderr_file) {
+        (Some(out), Some(err)) => Ok(ShellIO::new_capture_both(out, err)),
+        (Some(out), None) => Ok(ShellIO::new_capture_stdout(out)),
+        (None, Some(err)) => Ok(ShellIO::new_capture_stderr(err)),
+        (None, None) => Ok(ShellIO::new()),
+    }
 }
 
 fn handle_type(tokens: &[&str], ctx: &mut ShellIO) {
@@ -159,28 +254,16 @@ fn main() {
             continue;
         }
 
-        let redirect_pos = tokens.iter().position(|&t| t == ">" || t == "1>");
-        let mut shellio;
-
-        if let Some(pos) = redirect_pos {
-            if pos + 1 >= tokens.len() {
-                eprintln!("Syntax error: missing filename after redirect token");
+        let mut shellio = match setup_redirections(&mut tokens) {
+            Ok(io) => io,
+            Err(e) => {
+                eprintln!("{e}");
                 continue;
             }
-            let filename = tokens[pos + 1];
+        };
 
-            match File::create(filename) {
-                Ok(file) => {
-                    shellio = ShellIO::new_capture_stdout(file);
-                    tokens.truncate(pos);
-                }
-                Err(e) => {
-                    eprintln!("Failed to open file {filename}: {e}");
-                    continue;
-                }
-            }
-        } else {
-            shellio = ShellIO::new();
+        if tokens.is_empty() {
+            continue;
         }
 
         match tokens[0] {
@@ -191,7 +274,5 @@ fn main() {
             "cd" => handle_cd(&tokens, &mut shellio),
             _ => handle_not_builtin(&tokens, &mut shellio),
         }
-
-        if shellio.capture_stdout {}
     }
 }
