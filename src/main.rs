@@ -61,8 +61,17 @@ fn main() {
                 }
             }
             "cd" => {
-                if env::set_current_dir(tokens[1]).is_err() {
-                    println!("cd: {}: No such file or directory", tokens[1]);
+                if tokens.len() < 2 {
+                    continue;
+                }
+                let mut dir = PathBuf::from(tokens[1]);
+                if tokens[1] == "~"
+                    && let Some(path) = env::home_dir()
+                {
+                    dir = path;
+                }
+                if env::set_current_dir(&dir).is_err() {
+                    println!("cd: {}: No such file or directory", dir.display());
                 }
             }
             _ => {
