@@ -1,4 +1,4 @@
-use is_executable::*;
+use is_executable::IsExecutable;
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -41,7 +41,9 @@ fn main() {
                 }
                 let target = tokens[1];
                 match target {
-                    "exit" | "echo" | "type" | "pwd" => println!("{target} is a shell builtin"),
+                    "exit" | "echo" | "type" | "pwd" | "cd" => {
+                        println!("{target} is a shell builtin");
+                    }
                     _ => {
                         if let Some(path) = find_in_path(target) {
                             println!("{} is {}", target, path.display());
@@ -56,6 +58,11 @@ fn main() {
                     println!("{}", path.display());
                 } else {
                     println!("can't obtain working directory");
+                }
+            }
+            "cd" => {
+                if env::set_current_dir(tokens[1]).is_err() {
+                    println!("cd: {}: No such file or directory", tokens[1]);
                 }
             }
             _ => {
