@@ -54,19 +54,42 @@ pub fn handle_history(tokens: &[&str], history: &mut DefaultHistory, ctx: &mut S
             } else if arg == "-w" {
                 match history.save(&path) {
                     Ok(_) => {
-                        // this is just to pass the codecrafters assignment
-                        // (i.e. to behave like bash)
+                        // rustyline adds a #V2 header, remove it to match bash behavior
                         if let Ok(file) = fs::read_to_string(&path) {
-                            let mut content = file.lines().skip(1).collect::<Vec<_>>().join("\n");
-                            content.push('\n');
+                            let content = file
+                                .lines()
+                                .filter(|line| *line != "#V2")
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            let content = if content.is_empty() {
+                                content
+                            } else {
+                                content + "\n"
+                            };
                             fs::write(&path, content).unwrap();
                         }
                     }
                     Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
                 }
             } else if arg == "-a" {
-                if let Err(e) = history.append(&path) {
-                    writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
+                match history.append(&path) {
+                    Ok(_) => {
+                        // rustyline adds a #V2 header, remove it to match bash behavior
+                        if let Ok(file) = fs::read_to_string(&path) {
+                            let content = file
+                                .lines()
+                                .filter(|line| *line != "#V2")
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            let content = if content.is_empty() {
+                                content
+                            } else {
+                                content + "\n"
+                            };
+                            fs::write(&path, content).unwrap();
+                        }
+                    }
+                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
                 }
             }
         } else {
