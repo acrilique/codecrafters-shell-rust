@@ -2,7 +2,7 @@ use std::env;
 use std::io::Write;
 use std::path::PathBuf;
 
-use rustyline::history::DefaultHistory;
+use rustyline::history::{DefaultHistory, History};
 
 use crate::io::ShellIO;
 use crate::path::find_in_path;
@@ -35,12 +35,13 @@ pub fn handle_echo(tokens: &[&str], ctx: &mut ShellIO) {
 pub fn handle_history(tokens: &[&str], history: &DefaultHistory, ctx: &mut ShellIO) {
     if tokens.len() > 1 {
         if let Ok(num) = tokens[1].parse::<usize>() {
-            for (i, e) in history.iter().enumerate() {
-                if i + 1 > num {
-                    break;
-                }
-                writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap();
-            }
+            let len = history.len();
+            let skip = len.saturating_sub(num);
+            history
+                .iter()
+                .enumerate()
+                .skip(skip)
+                .for_each(|(i, e)| writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap());
         } else {
             writeln!(
                 ctx.stdout,
