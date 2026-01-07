@@ -4,7 +4,7 @@ mod io;
 mod path;
 mod pipeline;
 
-use std::env;
+use std::{env, fs};
 
 use completion::ShellHelper;
 use pipeline::run_pipeline;
@@ -44,6 +44,20 @@ fn main() -> rustyline::Result<()> {
     }
     if let Some(path) = env::var_os("HISTFILE") {
         editor.save_history(&path)?;
+        // rustyline adds a #V2 header, remove it to match bash behavior
+        if let Ok(file) = fs::read_to_string(&path) {
+            let content = file
+                .lines()
+                .filter(|line| *line != "#V2")
+                .collect::<Vec<_>>()
+                .join("\n");
+            let content = if content.is_empty() {
+                content
+            } else {
+                content + "\n"
+            };
+            fs::write(&path, content).unwrap();
+        }
     }
     Ok(())
 }
