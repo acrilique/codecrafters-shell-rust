@@ -1,0 +1,2 @@
+rm h.txt
+history -w h.txt
