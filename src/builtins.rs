@@ -32,11 +32,29 @@ pub fn handle_echo(tokens: &[&str], ctx: &mut ShellIO) {
     writeln!(ctx.stdout, "{}", tokens[1..].join(" ")).unwrap();
 }
 
-pub fn handle_history(_tokens: &[&str], history: &DefaultHistory, ctx: &mut ShellIO) {
-    history
-        .iter()
-        .enumerate()
-        .for_each(|(i, e)| writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap());
+pub fn handle_history(tokens: &[&str], history: &DefaultHistory, ctx: &mut ShellIO) {
+    if tokens.len() > 1 {
+        if let Ok(num) = tokens[1].parse::<usize>() {
+            for (i, e) in history.iter().enumerate() {
+                if i + 1 > num {
+                    break;
+                }
+                writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap();
+            }
+        } else {
+            writeln!(
+                ctx.stdout,
+                "history: {}: numeric argument required",
+                tokens[1]
+            )
+            .unwrap();
+        }
+    } else {
+        history
+            .iter()
+            .enumerate()
+            .for_each(|(i, e)| writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap());
+    }
 }
 
 pub fn handle_pwd(ctx: &mut ShellIO) {
