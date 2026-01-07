@@ -1,5 +1,0 @@
-rm h.txt
-history -w h.txt
-ls
-ooooo
-history -a h.txt

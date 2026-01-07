@@ -4,6 +4,8 @@ mod io;
 mod path;
 mod pipeline;
 
+use std::env;
+
 use completion::ShellHelper;
 use pipeline::run_pipeline;
 
@@ -16,6 +18,9 @@ fn main() -> rustyline::Result<()> {
     editor.set_helper(Some(ShellHelper));
     editor.set_completion_type(CompletionType::List);
     editor.set_history_ignore_dups(false)?;
+    if let Some(path) = env::var_os("HISTFILE") {
+        editor.load_history(&path)?;
+    }
 
     loop {
         let line = editor.readline("$ ");
