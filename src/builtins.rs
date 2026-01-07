@@ -44,24 +44,38 @@ pub fn handle_history(tokens: &[&str], history: &mut DefaultHistory, ctx: &mut S
                 .skip(skip)
                 .for_each(|(i, e)| writeln!(ctx.stdout, "    {}  {e}", i + 1).unwrap());
         } else if tokens.len() > 2 {
-            let path = PathBuf::from(tokens[2]);
-            if tokens[1] == "-r" {
+            let arg = tokens[1];
+            let path_str = tokens[2];
+            let path = PathBuf::from(path_str);
+            if arg == "-r" {
                 if let Err(e) = history.load(&path) {
-                    writeln!(ctx.stderr, "history: {}: {e}", tokens[2]).unwrap();
+                    writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
                 }
-            } else if tokens[1] == "-w" {
+            } else if arg == "-w" {
                 match history.save(&path) {
                     Ok(_) => {
                         // this is just to pass the codecrafters assignment
                         // (i.e. to behave like bash)
                         if let Ok(file) = fs::read_to_string(&path) {
-                            let mut content =
-                                file.lines().skip(1).collect::<Vec<_>>().join("\n");
+                            let mut content = file.lines().skip(1).collect::<Vec<_>>().join("\n");
                             content.push('\n');
                             fs::write(&path, content).unwrap();
                         }
                     }
-                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", tokens[2]).unwrap(),
+                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
+                }
+            } else if arg == "-a" {
+                match history.append(&path) {
+                    Ok(_) => {
+                        // this is just to pass the codecrafters assignment
+                        // (i.e. to behave like bash)
+                        if let Ok(file) = fs::read_to_string(&path) {
+                            let mut content = file.lines().skip(1).collect::<Vec<_>>().join("\n");
+                            content.push('\n');
+                            fs::write(&path, content).unwrap();
+                        }
+                    }
+                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
                 }
             }
         } else {
