@@ -1,8 +1,9 @@
 use is_executable::IsExecutable;
-use rustyline::Editor;
-use rustyline::completion::Completer;
+use rustyline::completion::{Completer, Pair};
+use rustyline::config::Configurer;
+use rustyline::{CompletionType, Context, Editor, Helper, Highlighter, Hinter, Validator};
 use std::env;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -52,59 +53,90 @@ impl<'a> ShellIO<'a> {
     }
 }
 
-struct MyHelper;
+const BUILTINS: &[&str] = &["cd", "echo", "exit", "pwd", "type"];
 
-impl rustyline::Helper for MyHelper {}
-impl Completer for MyHelper {
-    type Candidate = &'static str;
+#[derive(Helper, Highlighter, Hinter, Validator)]
+struct ShellHelper;
+
+impl Completer for ShellHelper {
+    type Candidate = Pair;
+
     fn complete(
         &self,
         line: &str,
         pos: usize,
-        _ctx: &rustyline::Context<'_>,
-    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        if line.is_empty() {
+        _ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        // Only complete the first word (command position)
+        let line_to_cursor = &line[..pos];
+        if line_to_cursor.contains(' ') {
             return Ok((0, vec![]));
         }
-        if "exit".starts_with(&line[..pos]) {
-            return Ok((0, vec!["exit "]));
+
+        let mut candidates: Vec<Pair> = Vec::new();
+
+        // Add matching builtins
+        for &builtin in BUILTINS {
+            if builtin.starts_with(line_to_cursor) {
+                candidates.push(Pair {
+                    display: builtin.to_string(),
+                    replacement: format!("{builtin} "),
+                });
+            }
         }
-        if "echo".starts_with(&line[..pos]) {
-            return Ok((0, vec!["echo "]));
+
+        // Add matching executables from PATH (excluding already-added builtins)
+        for name in collect_from_path(|name| name.starts_with(line_to_cursor)) {
+            if !candidates.iter().any(|c| c.display == name) {
+                candidates.push(Pair {
+                    display: name.clone(),
+                    replacement: format!("{name} "),
+                });
+            }
         }
-        if "type".starts_with(&line[..pos]) {
-            return Ok((0, vec!["type "]));
-        }
-        if "pwd".starts_with(&line[..pos]) {
-            return Ok((0, vec!["pwd "]));
-        }
-        if "cd".starts_with(&line[..pos]) {
-            return Ok((0, vec!["cd "]));
-        }
-        Ok((0, vec![]))
+
+        candidates.sort_by(|a, b| a.display.cmp(&b.display));
+        Ok((0, candidates))
     }
 }
-impl rustyline::hint::Hinter for MyHelper {
-    type Hint = &'static str;
-    fn hint(&self, _line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<Self::Hint> {
-        None
+
+/// Iterates over all executable files in PATH, calling the provided function for each.
+/// Returns early with `Some(T)` if the function returns `Some`, otherwise `None`.
+fn find_in_path_by<T>(mut f: impl FnMut(&PathBuf, &str) -> Option<T>) -> Option<T> {
+    let paths = env::var_os("PATH")?;
+    for dir in env::split_paths(&paths) {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_executable()
+                && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                && let Some(result) = f(&path, name)
+            {
+                return Some(result);
+            }
+        }
     }
+    None
 }
-impl rustyline::highlight::Highlighter for MyHelper {}
-impl rustyline::validate::Validator for MyHelper {}
 
 fn find_in_path(command: &str) -> Option<PathBuf> {
-    env::var_os("PATH").and_then(|paths| {
-        env::split_paths(&paths).find_map(|dir| {
-            let full_path = dir.join(command);
-            if full_path.is_executable() {
-                Some(full_path)
-            } else {
-                None
-            }
-        })
-    })
+    find_in_path_by(|path, name| (name == command).then(|| path.clone()))
 }
+
+/// Collects all executables from PATH matching a predicate, avoiding duplicates.
+fn collect_from_path(mut predicate: impl FnMut(&str) -> bool) -> Vec<String> {
+    let mut results = Vec::new();
+    find_in_path_by(|_, name| {
+        if predicate(name) && !results.contains(&name.to_string()) {
+            results.push(name.to_string());
+        }
+        None::<()> // Never return early, collect all
+    });
+    results
+}
+
 fn setup_redirections<'a>(tokens: &mut Vec<&str>) -> Result<ShellIO<'a>, String> {
     let mut stdout_file: Option<File> = None;
     let mut stderr_file: Option<File> = None;
@@ -204,15 +236,12 @@ fn setup_redirections<'a>(tokens: &mut Vec<&str>) -> Result<ShellIO<'a>, String>
 fn handle_type(tokens: &[&str], ctx: &mut ShellIO) {
     if tokens.len() > 1 {
         let target = tokens[1];
-        match target {
-            "exit" | "echo" | "type" | "pwd" | "cd" => println!("{target} is a shell builtin"),
-            _ => {
-                if let Some(path) = find_in_path(target) {
-                    writeln!(ctx.stdout, "{} is {}", target, path.display()).unwrap();
-                } else {
-                    writeln!(ctx.stderr, "{target}: not found").unwrap();
-                }
-            }
+        if BUILTINS.contains(&target) {
+            writeln!(ctx.stdout, "{target} is a shell builtin").unwrap();
+        } else if let Some(path) = find_in_path(target) {
+            writeln!(ctx.stdout, "{} is {}", target, path.display()).unwrap();
+        } else {
+            writeln!(ctx.stderr, "{target}: not found").unwrap();
         }
     }
 }
@@ -282,8 +311,9 @@ fn handle_not_builtin(tokens: &[&str], ctx: &mut ShellIO) {
 }
 
 fn main() -> rustyline::Result<()> {
-    let mut editor: Editor<MyHelper, _> = Editor::new()?;
-    editor.set_helper(Some(MyHelper));
+    let mut editor: Editor<ShellHelper, _> = Editor::new()?;
+    editor.set_helper(Some(ShellHelper));
+    editor.set_completion_type(CompletionType::List);
 
     loop {
         let line = editor.readline("$ ");
