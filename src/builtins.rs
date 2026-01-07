@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -47,50 +46,18 @@ pub fn handle_history(tokens: &[&str], history: &mut DefaultHistory, ctx: &mut S
             let arg = tokens[1];
             let path_str = tokens[2];
             let path = PathBuf::from(path_str);
-            if arg == "-r" {
-                if let Err(e) = history.load(&path) {
-                    writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
-                }
-            } else if arg == "-w" {
-                match history.save(&path) {
-                    Ok(_) => {
-                        // rustyline adds a #V2 header, remove it to match bash behavior
-                        if let Ok(file) = fs::read_to_string(&path) {
-                            let content = file
-                                .lines()
-                                .filter(|line| *line != "#V2")
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            let content = if content.is_empty() {
-                                content
-                            } else {
-                                content + "\n"
-                            };
-                            fs::write(&path, content).unwrap();
-                        }
-                    }
-                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
-                }
-            } else if arg == "-a" {
-                match history.append(&path) {
-                    Ok(_) => {
-                        // rustyline adds a #V2 header, remove it to match bash behavior
-                        if let Ok(file) = fs::read_to_string(&path) {
-                            let content = file
-                                .lines()
-                                .filter(|line| *line != "#V2")
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            let content = if content.is_empty() {
-                                content
-                            } else {
-                                content + "\n"
-                            };
-                            fs::write(&path, content).unwrap();
-                        }
-                    }
-                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
-                }
+            if arg == "-r"
+                && let Err(e) = history.load(&path)
+            {
+                writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
+            } else if arg == "-w"
+                && let Err(e) = history.save(&path)
+            {
+                writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap()
+            } else if arg == "-a"
+                && let Err(e) = history.append(&path)
+            {
+                writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
             }
         } else {
             writeln!(
