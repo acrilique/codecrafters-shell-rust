@@ -16,7 +16,7 @@ use std::env;
 
 fn main() -> rustyline::Result<()> {
     let mut editor: Editor<ShellHelper, DefaultHistory> = Editor::new()?;
-    editor.set_helper(Some(ShellHelper));
+    editor.set_helper(Some(ShellHelper::new()));
     editor.set_completion_type(CompletionType::List);
     editor.set_history_ignore_dups(false)?;
     if let Some(path) = env::var_os("HISTFILE") {
