@@ -7,7 +7,7 @@ use crate::builtins::{BUILTINS, handle_cd, handle_echo, handle_history, handle_p
 use crate::io::{parse_pipeline, setup_redirections, ShellIO};
 
 /// Execute a pipeline of commands
-pub fn run_pipeline(input: &str, history: &DefaultHistory) {
+pub fn run_pipeline(input: &str, history: &mut DefaultHistory) {
     let segments = parse_pipeline(input);
 
     if segments.is_empty() {
@@ -25,7 +25,7 @@ pub fn run_pipeline(input: &str, history: &DefaultHistory) {
 }
 
 /// Run a single command (no pipes)
-fn run_single_command(command: &str, history: &DefaultHistory) {
+fn run_single_command(command: &str, history: &mut DefaultHistory) {
     let args_owned = match shell_words::split(command) {
         Ok(args) => args,
         Err(_) => {
@@ -101,7 +101,7 @@ fn run_external(tokens: &[&str], ctx: &mut ShellIO) {
 }
 
 /// Run multiple commands connected by pipes
-fn run_piped_commands(segments: &[String], history: &DefaultHistory) {
+fn run_piped_commands(segments: &[String], history: &mut DefaultHistory) {
     let mut children: Vec<Child> = Vec::new();
     let mut prev_stdout: Option<std::process::ChildStdout> = None;
 
@@ -210,7 +210,7 @@ fn run_piped_commands(segments: &[String], history: &DefaultHistory) {
 }
 
 /// Run a builtin command and capture its output for piping
-fn run_builtin_for_pipe(tokens: &[&str], history: &DefaultHistory, stdin: Option<std::process::ChildStdout>) -> Vec<u8> {
+fn run_builtin_for_pipe(tokens: &[&str], history: &mut DefaultHistory, stdin: Option<std::process::ChildStdout>) -> Vec<u8> {
     let mut output = Vec::new();
 
     {
@@ -234,7 +234,7 @@ fn run_builtin_for_pipe(tokens: &[&str], history: &DefaultHistory, stdin: Option
 }
 
 /// Run remaining pipeline segments with given input data
-fn run_pipeline_with_input(history: &DefaultHistory, segments: &[String], input: Vec<u8>) {
+fn run_pipeline_with_input(history: &mut DefaultHistory, segments: &[String], input: Vec<u8>) {
     if segments.is_empty() {
         print!("{}", String::from_utf8_lossy(&input));
         return;
@@ -338,7 +338,7 @@ fn run_pipeline_with_input(history: &DefaultHistory, segments: &[String], input:
 }
 
 /// Run a builtin with byte input (for pipelines)
-fn run_builtin_with_bytes(tokens: &[&str], history: &DefaultHistory, input: Vec<u8>) -> Vec<u8> {
+fn run_builtin_with_bytes(tokens: &[&str], history: &mut DefaultHistory, input: Vec<u8>) -> Vec<u8> {
     let mut output = Vec::new();
 
     {

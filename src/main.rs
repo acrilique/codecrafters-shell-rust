@@ -32,7 +32,7 @@ fn main() -> rustyline::Result<()> {
                     break;
                 }
 
-                run_pipeline(command, editor.history());
+                run_pipeline(command, editor.history_mut());
             }
             Err(_) => break,
         }
