@@ -1,11 +1,13 @@
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
 
-use crate::builtins::{handle_cd, handle_echo, handle_pwd, handle_type, BUILTINS};
+use rustyline::history::{DefaultHistory};
+
+use crate::builtins::{BUILTINS, handle_cd, handle_echo, handle_history, handle_pwd, handle_type};
 use crate::io::{parse_pipeline, setup_redirections, ShellIO};
 
 /// Execute a pipeline of commands
-pub fn run_pipeline(input: &str) {
+pub fn run_pipeline(input: &str, history: &DefaultHistory) {
     let segments = parse_pipeline(input);
 
     if segments.is_empty() {
@@ -14,16 +16,16 @@ pub fn run_pipeline(input: &str) {
 
     // Single command - use the original flow
     if segments.len() == 1 {
-        run_single_command(&segments[0]);
+        run_single_command(&segments[0], history);
         return;
     }
 
     // Multiple commands - set up the pipeline
-    run_piped_commands(&segments);
+    run_piped_commands(&segments, history);
 }
 
 /// Run a single command (no pipes)
-fn run_single_command(command: &str) {
+fn run_single_command(command: &str, history: &DefaultHistory) {
     let args_owned = match shell_words::split(command) {
         Ok(args) => args,
         Err(_) => {
@@ -53,6 +55,7 @@ fn run_single_command(command: &str) {
         "cd" => handle_cd(&tokens, &mut shellio),
         "echo" => handle_echo(&tokens, &mut shellio),
         "exit" => std::process::exit(0),
+        "history" => handle_history(&tokens, history, &mut shellio),
         "pwd" => handle_pwd(&mut shellio),
         "type" => handle_type(&tokens, &mut shellio),
         _ => run_external(&tokens, &mut shellio),
@@ -98,7 +101,7 @@ fn run_external(tokens: &[&str], ctx: &mut ShellIO) {
 }
 
 /// Run multiple commands connected by pipes
-fn run_piped_commands(segments: &[String]) {
+fn run_piped_commands(segments: &[String], history: &DefaultHistory) {
     let mut children: Vec<Child> = Vec::new();
     let mut prev_stdout: Option<std::process::ChildStdout> = None;
 
@@ -139,7 +142,7 @@ fn run_piped_commands(segments: &[String]) {
 
         // Handle builtins in pipeline
         if BUILTINS.contains(&cmd_name) {
-            let output = run_builtin_for_pipe(&tokens, prev_stdout.take());
+            let output = run_builtin_for_pipe(&tokens, history, prev_stdout.take());
             if !is_last {
                 // For builtins in the middle, we need to create a pipe manually
                 // Store the output in a cursor for the next command
@@ -147,7 +150,7 @@ fn run_piped_commands(segments: &[String]) {
                                     // We need a different approach - use the output directly
                 if segments.get(i + 1).is_some() {
                     // Run remaining pipeline with this output as input
-                    run_pipeline_with_input(&segments[i + 1..], output);
+                    run_pipeline_with_input(history, &segments[i + 1..], output);
                     return;
                 }
             } else {
@@ -207,7 +210,7 @@ fn run_piped_commands(segments: &[String]) {
 }
 
 /// Run a builtin command and capture its output for piping
-fn run_builtin_for_pipe(tokens: &[&str], stdin: Option<std::process::ChildStdout>) -> Vec<u8> {
+fn run_builtin_for_pipe(tokens: &[&str], history: &DefaultHistory, stdin: Option<std::process::ChildStdout>) -> Vec<u8> {
     let mut output = Vec::new();
 
     {
@@ -220,6 +223,7 @@ fn run_builtin_for_pipe(tokens: &[&str], stdin: Option<std::process::ChildStdout
         match tokens[0] {
             "cd" => handle_cd(tokens, &mut shellio),
             "echo" => handle_echo(tokens, &mut shellio),
+            "history" => handle_history(tokens, history, &mut shellio),
             "pwd" => handle_pwd(&mut shellio),
             "type" => handle_type(tokens, &mut shellio),
             _ => {}
@@ -230,7 +234,7 @@ fn run_builtin_for_pipe(tokens: &[&str], stdin: Option<std::process::ChildStdout
 }
 
 /// Run remaining pipeline segments with given input data
-fn run_pipeline_with_input(segments: &[String], input: Vec<u8>) {
+fn run_pipeline_with_input(history: &DefaultHistory, segments: &[String], input: Vec<u8>) {
     if segments.is_empty() {
         print!("{}", String::from_utf8_lossy(&input));
         return;
@@ -275,7 +279,7 @@ fn run_pipeline_with_input(segments: &[String], input: Vec<u8>) {
 
         // Handle builtins
         if BUILTINS.contains(&cmd_name) {
-            let output = run_builtin_with_bytes(&tokens, std::mem::take(&mut prev_data));
+            let output = run_builtin_with_bytes(&tokens, history, std::mem::take(&mut prev_data));
             if is_last {
                 print!("{}", String::from_utf8_lossy(&output));
             } else {
@@ -334,7 +338,7 @@ fn run_pipeline_with_input(segments: &[String], input: Vec<u8>) {
 }
 
 /// Run a builtin with byte input (for pipelines)
-fn run_builtin_with_bytes(tokens: &[&str], input: Vec<u8>) -> Vec<u8> {
+fn run_builtin_with_bytes(tokens: &[&str], history: &DefaultHistory, input: Vec<u8>) -> Vec<u8> {
     let mut output = Vec::new();
 
     {
@@ -346,6 +350,7 @@ fn run_builtin_with_bytes(tokens: &[&str], input: Vec<u8>) -> Vec<u8> {
         match tokens[0] {
             "cd" => handle_cd(tokens, &mut shellio),
             "echo" => handle_echo(tokens, &mut shellio),
+            "history" => handle_history(tokens, history, &mut shellio),
             "pwd" => handle_pwd(&mut shellio),
             "type" => handle_type(tokens, &mut shellio),
             _ => {}

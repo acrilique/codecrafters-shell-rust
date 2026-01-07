@@ -8,10 +8,11 @@ use completion::ShellHelper;
 use pipeline::run_pipeline;
 
 use rustyline::config::Configurer;
+use rustyline::history::DefaultHistory;
 use rustyline::{CompletionType, Editor};
 
 fn main() -> rustyline::Result<()> {
-    let mut editor: Editor<ShellHelper, _> = Editor::new()?;
+    let mut editor: Editor<ShellHelper, DefaultHistory> = Editor::new()?;
     editor.set_helper(Some(ShellHelper));
     editor.set_completion_type(CompletionType::List);
 
@@ -24,12 +25,13 @@ fn main() -> rustyline::Result<()> {
                     continue;
                 }
 
-                // Check for exit before running pipeline
+                editor.add_history_entry(command)?;
+
                 if command == "exit" {
                     break;
                 }
 
-                run_pipeline(command);
+                run_pipeline(command, editor.history());
             }
             Err(_) => break,
         }
