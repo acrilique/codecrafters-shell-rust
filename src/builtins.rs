@@ -65,17 +65,8 @@ pub fn handle_history(tokens: &[&str], history: &mut DefaultHistory, ctx: &mut S
                     Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
                 }
             } else if arg == "-a" {
-                match history.append(&path) {
-                    Ok(_) => {
-                        // this is just to pass the codecrafters assignment
-                        // (i.e. to behave like bash)
-                        if let Ok(file) = fs::read_to_string(&path) {
-                            let mut content = file.lines().skip(1).collect::<Vec<_>>().join("\n");
-                            content.push('\n');
-                            fs::write(&path, content).unwrap();
-                        }
-                    }
-                    Err(e) => writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap(),
+                if let Err(e) = history.append(&path) {
+                    writeln!(ctx.stderr, "history: {}: {e}", path_str).unwrap();
                 }
             }
         } else {
