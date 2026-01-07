@@ -67,19 +67,19 @@ impl Completer for MyHelper {
             return Ok((0, vec![]));
         }
         if "exit".starts_with(&line[..pos]) {
-            return Ok((0, vec!["exit"]));
+            return Ok((0, vec!["exit "]));
         }
         if "echo".starts_with(&line[..pos]) {
-            return Ok((0, vec!["echo"]));
+            return Ok((0, vec!["echo "]));
         }
         if "type".starts_with(&line[..pos]) {
-            return Ok((0, vec!["type"]));
+            return Ok((0, vec!["type "]));
         }
         if "pwd".starts_with(&line[..pos]) {
-            return Ok((0, vec!["pwd"]));
+            return Ok((0, vec!["pwd "]));
         }
         if "cd".starts_with(&line[..pos]) {
-            return Ok((0, vec!["cd"]));
+            return Ok((0, vec!["cd "]));
         }
         Ok((0, vec![]))
     }
