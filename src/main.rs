@@ -15,6 +15,7 @@ fn main() -> rustyline::Result<()> {
     let mut editor: Editor<ShellHelper, DefaultHistory> = Editor::new()?;
     editor.set_helper(Some(ShellHelper));
     editor.set_completion_type(CompletionType::List);
+    editor.set_history_ignore_dups(false)?;
 
     loop {
         let line = editor.readline("$ ");
