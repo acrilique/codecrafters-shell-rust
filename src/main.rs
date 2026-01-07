@@ -42,5 +42,8 @@ fn main() -> rustyline::Result<()> {
             Err(_) => break,
         }
     }
+    if let Some(path) = env::var_os("HISTFILE") {
+        editor.save_history(&path)?;
+    }
     Ok(())
 }
