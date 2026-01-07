@@ -1,4 +1,6 @@
 use is_executable::IsExecutable;
+use rustyline::Editor;
+use rustyline::completion::Completer;
 use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -49,6 +51,47 @@ impl<'a> ShellIO<'a> {
         }
     }
 }
+
+struct MyHelper;
+
+impl rustyline::Helper for MyHelper {}
+impl Completer for MyHelper {
+    type Candidate = &'static str;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        if line.is_empty() {
+            return Ok((0, vec![]));
+        }
+        if "exit".starts_with(&line[..pos]) {
+            return Ok((0, vec!["exit"]));
+        }
+        if "echo".starts_with(&line[..pos]) {
+            return Ok((0, vec!["echo"]));
+        }
+        if "type".starts_with(&line[..pos]) {
+            return Ok((0, vec!["type"]));
+        }
+        if "pwd".starts_with(&line[..pos]) {
+            return Ok((0, vec!["pwd"]));
+        }
+        if "cd".starts_with(&line[..pos]) {
+            return Ok((0, vec!["cd"]));
+        }
+        Ok((0, vec![]))
+    }
+}
+impl rustyline::hint::Hinter for MyHelper {
+    type Hint = &'static str;
+    fn hint(&self, _line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<Self::Hint> {
+        None
+    }
+}
+impl rustyline::highlight::Highlighter for MyHelper {}
+impl rustyline::validate::Validator for MyHelper {}
 
 fn find_in_path(command: &str) -> Option<PathBuf> {
     env::var_os("PATH").and_then(|paths| {
@@ -238,41 +281,46 @@ fn handle_not_builtin(tokens: &[&str], ctx: &mut ShellIO) {
     }
 }
 
-fn main() {
+fn main() -> rustyline::Result<()> {
+    let mut editor: Editor<MyHelper, _> = Editor::new()?;
+    editor.set_helper(Some(MyHelper));
+
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
+        let line = editor.readline("$ ");
+        match line {
+            Ok(line) => {
+                let command = line.trim();
+                let args_owned =
+                    shell_words::split(command).expect("failed to parse command input");
+                let mut tokens: Vec<&str> = args_owned.iter().map(String::as_str).collect();
 
-        let mut buffer = String::new();
-        io::stdin().read_line(&mut buffer).unwrap();
+                if tokens.is_empty() {
+                    continue;
+                }
 
-        let command = buffer.trim();
-        let args_owned = shell_words::split(command).expect("failed to parse command input");
-        let mut tokens: Vec<&str> = args_owned.iter().map(String::as_str).collect();
+                let mut shellio = match setup_redirections(&mut tokens) {
+                    Ok(io) => io,
+                    Err(e) => {
+                        eprintln!("{e}");
+                        continue;
+                    }
+                };
 
-        if tokens.is_empty() {
-            continue;
-        }
+                if tokens.is_empty() {
+                    continue;
+                }
 
-        let mut shellio = match setup_redirections(&mut tokens) {
-            Ok(io) => io,
-            Err(e) => {
-                eprintln!("{e}");
-                continue;
+                match tokens[0] {
+                    "exit" => break,
+                    "echo" => writeln!(shellio.stdout, "{}", tokens[1..].join(" ")).unwrap(),
+                    "type" => handle_type(&tokens, &mut shellio),
+                    "pwd" => handle_pwd(&mut shellio),
+                    "cd" => handle_cd(&tokens, &mut shellio),
+                    _ => handle_not_builtin(&tokens, &mut shellio),
+                }
             }
-        };
-
-        if tokens.is_empty() {
-            continue;
-        }
-
-        match tokens[0] {
-            "exit" => break,
-            "echo" => writeln!(shellio.stdout, "{}", tokens[1..].join(" ")).unwrap(),
-            "type" => handle_type(&tokens, &mut shellio),
-            "pwd" => handle_pwd(&mut shellio),
-            "cd" => handle_cd(&tokens, &mut shellio),
-            _ => handle_not_builtin(&tokens, &mut shellio),
+            Err(_) => break,
         }
     }
+    Ok(())
 }
